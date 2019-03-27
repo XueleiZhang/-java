@@ -30,6 +30,7 @@ import static okhttp3.internal.Internal.instance;
 /**
  * date 2017/9/6
  * 依赖 implementation 'com.squareup.okhttp3:okhttp:3.9.0'
+ * gson解析implementation 'com.google.code.gson:gson:2.8.0'
  * author:张学雷(Administrator)
  * functinn:okhttp中级封装，实现两个功能，从服务端下载数据；从客户端提交数据
  * 封装优秀的OKHttp：okhttpUtils,OKGO(更深入的封装，研究OKGO)
