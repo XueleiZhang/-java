@@ -1,0 +1,428 @@
+package com.example.mac.cartoon.utils;
+
+import android.content.ActivityNotFoundException;
+import android.content.Context;
+import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.database.Cursor;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.drawable.Drawable;
+import android.icu.util.EthiopicCalendar;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
+import android.net.Uri;
+import android.os.Environment;
+import android.support.v4.graphics.drawable.DrawableCompat;
+import android.text.format.Formatter;
+import android.util.Log;
+import android.widget.EditText;
+
+import com.example.mac.cartoon.R;
+import com.example.mac.cartoon.database.DownloadDataBase;
+import com.wega.library.loadingDialog.LoadingDialog;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.List;
+
+/**
+ * Created by mac on 2018/7/13.
+ */
+
+public class Utils {
+
+
+
+    public static String getEditTextData(EditText editText) {
+        if (editText != null) {
+            return editText.getText().toString().trim();
+        } else {
+            return null;
+        }
+
+    }
+
+    public static String formatSize(String target_size, Context context) {
+        return Formatter.formatFileSize(context, Long.valueOf(target_size));
+    }
+
+    public static List<String> queryDownloadData(String id, Context context, String whatToQuery) {
+        try {
+            Cursor cursor = DownloadDataBase.getInstance(context).getWritableDatabase().rawQuery("select * from download where id = " + "'" + id + "'", new String[]{});
+            List<String> count = new ArrayList<>();
+            while (cursor.moveToNext()) {
+                String str = cursor.getString(cursor.getColumnIndex(whatToQuery));
+                count.add(str);
+            }
+            cursor.close();
+            return count;
+
+        } catch (Exception e) {
+            return null;
+        }
+
+
+    }
+
+    public static void deleteDownloadData(Context context, String id) {
+        DownloadDataBase.getInstance(context).getWritableDatabase().delete("download", "id=?", new String[]{id});
+    }
+
+    public static String queryDownloadData(String what, String str, Context context, String
+            whatToQuery) {
+        try {
+            Cursor cursor = DownloadDataBase.getInstance(context).getWritableDatabase().rawQuery("select * from download where " + what + " = " + "'" + str + "'", new String[]{});
+            String whattoquery = null;
+            while (cursor.moveToNext()) {
+                whattoquery = cursor.getString(cursor.getColumnIndex(whatToQuery));
+            }
+            cursor.close();
+            return whattoquery;
+
+        } catch (Exception e) {
+            return null;
+        }
+
+
+    }
+
+    /**
+     * 获取assets目录下的单个文件
+     *
+     * @param context
+     * @param fileName
+     * @return
+     */
+    public static File getFileFromAssetsFile(Context context, String fileName) {//这种方式不能用，只能用于webview加载，直接取路径是不行的
+
+        String path = "file:///android_asset/" + fileName;
+        File file = new File(path);
+        return file;
+
+    }
+
+    /**
+     * 判断文件编码
+     *
+     * @param file 文件
+     * @return 编码：GBK,UTF-8,UTF-16LE
+     */
+    public static String getCharset(File file) {
+        String charset = "GBK";
+        byte[] first3Bytes = new byte[3];
+        try {
+            boolean checked = false;
+            BufferedInputStream bis = new BufferedInputStream(
+                    new FileInputStream(file));
+            bis.mark(0);
+            int read = bis.read(first3Bytes, 0, 3);
+            if (read == -1)
+                return charset;
+            if (first3Bytes[0] == (byte) 0xFF && first3Bytes[1] == (byte) 0xFE) {
+                charset = "UTF-16LE";
+                checked = true;
+            } else if (first3Bytes[0] == (byte) 0xFE
+                    && first3Bytes[1] == (byte) 0xFF) {
+                charset = "UTF-16BE";
+                checked = true;
+            } else if (first3Bytes[0] == (byte) 0xEF
+                    && first3Bytes[1] == (byte) 0xBB
+                    && first3Bytes[2] == (byte) 0xBF) {
+                charset = "UTF-8";
+                checked = true;
+            }
+            bis.reset();
+            if (!checked) {
+                int loc = 0;
+                while ((read = bis.read()) != -1) {
+                    loc++;
+                    if (read >= 0xF0)
+                        break;
+                    if (0x80 <= read && read <= 0xBF)
+                        break;
+                    if (0xC0 <= read && read <= 0xDF) {
+                        read = bis.read();
+                        if (0x80 <= read && read <= 0xBF)
+                            continue;
+                        else
+                            break;
+                    } else if (0xE0 <= read && read <= 0xEF) {
+                        read = bis.read();
+                        if (0x80 <= read && read <= 0xBF) {
+                            read = bis.read();
+                            if (0x80 <= read && read <= 0xBF) {
+                                charset = "UTF-8";
+                                break;
+                            } else
+                                break;
+                        } else
+                            break;
+                    }
+                }
+            }
+            bis.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return charset;
+    }
+
+    /**
+     * 打分
+     *
+     * @param context
+     */
+    public static void applicationScore(Context context) {
+
+        final String appPackageName = context.getPackageName(); // getPackageName() from Context or Activity object
+        try {
+            context.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + appPackageName)));
+        } catch (ActivityNotFoundException anfe) {
+            context.startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + appPackageName)));
+        }
+    }
+
+    public static Drawable tintDrawable(Drawable drawable, ColorStateList colors) {
+        final Drawable wrappedDrawable = DrawableCompat.wrap(drawable);
+        DrawableCompat.setTintList(wrappedDrawable, colors);
+        return wrappedDrawable;
+    }
+
+    /**
+     * 判断网络是否链接
+     *
+     * @param context
+     * @return
+     */
+    public static boolean isNetworkConnected(Context context) {
+        if (context != null) {
+            ConnectivityManager mConnectivityManager = (ConnectivityManager) context
+                    .getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo mNetworkInfo = mConnectivityManager.getActiveNetworkInfo();
+            if (mNetworkInfo != null) {
+                return mNetworkInfo.isAvailable();
+            }
+        }
+        return false;
+    }
+
+    public static List removeDuplicate(List<String> list) {
+        for (int i = 0; i < list.size() - 1; i++) {
+            for (int j = list.size() - 1; j > i; j--) {
+                if (list.get(j).equals(list.get(i))) {
+                    list.remove(j);
+                }
+            }
+        }
+        return list;
+    }
+
+    /* @author suncat  * @category 判断是否有外网连接（普通方法不能判断外网的网络是否连接，比如连接上局域网）
+  * @return
+  */
+    public static final boolean ping() {
+        String result = null;
+        try {
+            String ip = "www.google.com";// ping 的地址，可以换成任何一种可靠的外网
+            Process p = Runtime.getRuntime().exec("ping -c 3 -w 100 " + ip);// ping网址3次
+            // 读取ping的内容，可以不加
+            InputStream input = p.getInputStream();
+            BufferedReader in = new BufferedReader(new InputStreamReader(input));
+            StringBuffer stringBuffer = new StringBuffer();
+            String content = "";
+            while ((content = in.readLine()) != null) {
+                stringBuffer.append(content);
+            }
+            Log.d("------ping-----", "result content : " + stringBuffer.toString());
+            // ping的状态
+            int status = p.waitFor();
+            if (status == 0) {
+                result = "success";
+                return true;
+            } else {
+                result = "failed";
+            }
+        } catch (IOException e) {
+            result = "IOException";
+        } catch (InterruptedException e) {
+            result = "InterruptedException";
+        } finally {
+            Log.d("----result---", "result = " + result);
+        }
+        return false;
+    }
+
+
+    public static Bitmap readBitmap(Context context, String fileName) {
+        Bitmap bitmap = null;
+        List<Byte> list = new ArrayList<Byte>();
+        try {
+            InputStream is = context.getAssets().open(fileName);
+            int read;
+            while ((read = is.read()) > -1) {
+                read = read ^ "somsoft8".hashCode();
+                list.add((byte) read);
+            }
+
+            byte[] arr = new byte[list.size()];
+            int i = 0;
+            for (Byte item : list) {
+                arr[i++] = item;
+            }
+            bitmap = BitmapFactory.decodeByteArray(arr, 0, list.size());
+            System.out.println(bitmap);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return bitmap;
+    }
+
+    /**
+     * 照片转byte二进制
+     *
+     * @param imagepath 需要转byte的照片路径
+     * @return 已经转成的byte
+     * @throws Exception
+     */
+    public static byte[] readStream(String imagepath) throws Exception {
+        FileInputStream fs = new FileInputStream(imagepath);
+
+        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[1024];
+        int len = 0;
+        while (-1 != (len = fs.read(buffer))) {
+            outStream.write(buffer, 0, len);
+        }
+        outStream.close();
+        fs.close();
+        return outStream.toByteArray();
+    }
+
+
+    /**
+     * 根据byte数组生成文件
+     *
+     * @param bytes 生成文件用到的byte数组
+     */
+    public static void createFileWithByte(byte[] bytes, String fileName) {
+        // TODO Auto-generated method stub
+        /**
+         * 创建File对象，其中包含文件所在的目录以及文件的命名
+         */
+        File file = new File(Environment.getExternalStorageDirectory(),
+                fileName);
+        // 创建FileOutputStream对象
+        FileOutputStream outputStream = null;
+        // 创建BufferedOutputStream对象
+        BufferedOutputStream bufferedOutputStream = null;
+        try {
+            // 如果文件存在则删除
+            if (file.exists()) {
+                file.delete();
+            }
+            // 在文件系统中根据路径创建一个新的空文件
+            file.createNewFile();
+            // 获取FileOutputStream对象
+            outputStream = new FileOutputStream(file);
+            // 获取BufferedOutputStream对象
+            bufferedOutputStream = new BufferedOutputStream(outputStream);
+            // 往文件所在的缓冲输出流中写byte数据
+            bufferedOutputStream.write(bytes);
+            // 刷出缓冲输出流，该步很关键，要是不执行flush()方法，那么文件的内容是空的。
+            bufferedOutputStream.flush();
+        } catch (Exception e) {
+            // 打印异常信息
+            e.printStackTrace();
+        } finally {
+            // 关闭创建的流对象
+            if (outputStream != null) {
+                try {
+                    outputStream.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            if (bufferedOutputStream != null) {
+                try {
+                    bufferedOutputStream.close();
+                } catch (Exception e2) {
+                    e2.printStackTrace();
+                }
+            }
+        }
+    }
+
+    /**
+     * @param
+     * @param inStream
+     * @return byte[]
+     * @throws Exception
+     */
+    public static byte[] readStream(InputStream inStream) throws Exception {
+        byte[] buffer = new byte[1024];
+        int len = -1;
+        ByteArrayOutputStream outStream = new ByteArrayOutputStream();
+        while ((len = inStream.read(buffer)) != -1) {
+            outStream.write(buffer, 0, len);
+        }
+        byte[] data = outStream.toByteArray();
+        outStream.close();
+        inStream.close();
+        return data;
+
+    }
+
+
+    /**
+     * 图片解码
+     *
+     * @param bytes
+     * @return
+     */
+    public static byte[] decodingImage(byte[] bytes) {
+        byte[] x10 = {(byte) 0xA0, (byte) 0xBA, (byte) 0xFA, (byte) 0xE2, (byte) 0xC0, (byte) 0xA4, 0x78, 0x5D, 0x35, (byte) 0xD8, 0x40, (byte) 0x80, 0x39, (byte) 0xE9, 0xD, 0x31, (byte) 0xE1, 0x60, (byte) 0xFC, 0x7D, 0x12, (byte) 0xBD, (byte) 0xA7, (byte) 0xA8, 0xF, (byte) 0xC6, 0x41, (byte) 0xC1, (byte) 0xF8, 0x4A, 0x20, (byte) 0x9F, (byte) 0xCE, (byte) 0xB4, (byte) 0x28, 0x54, (byte) 0xD5, (byte) 0xAE, (byte) 0xEE, 0x4E, (byte) 0x9A, 0x76, (byte) 0xAA, (byte) 0x98, 0x22, 0x4C, 0x11, 0x46, 0x19, 0xA, (byte) 0xB3, (byte) 0xFB, (byte) 0xEA, 6, 0x10, 0x2A, 0x3F, 0x26, 0x1D, (byte) 0x8D, (byte) 0x8E, (byte) 0xAC, 0x24, (byte) 0xF5, (byte) 0xA2, (byte) 0xBB, 0x45, 0x61, 0x1A, (byte) 0xF6, (byte) 0x96, 0x18, 0x15, 0x2D, 0x5C, (byte) 0x89, 0x48, 0x57, (byte) 0xCD, (byte) 0x93, 0x3E, 8, (byte) 0xB0, (byte) 0xDA, (byte) 0xAF, 0x36, 0x16, 0xC, 0x5E, 0x6D, (byte) 0xF4, (byte) 0xB1, (byte) 0xC5, 0x51, (byte) 0xE6, 0x50, 0x77, 2, 0x6B, (byte) 0xEF, (byte) 0x81, (byte) 0xFE, (byte) 0x95, (byte) 0xCA, (byte) 0xD7, (byte) 0xE4, (byte) 0xF3, 0x25, (byte) 0xA6, 0x44, (byte) 0xB2, 0xB, (byte) 0xCC, 0x71, (byte) 0x91, 9, 0x7C, 0x7E, (byte) 0xA5, 0x1F, (byte) 0x99, 0x7F, (byte) 0xB5, 3, (byte) 0x9C, (byte) 0xAB, 0x3B, 0x23, 0x4D, (byte) 0xEB, 0x47, (byte) 0xF2, 0x2F, 0x6F, (byte) 0xEC, 0x2C, (byte) 0xE5, (byte) 0x90, (byte) 0xC4, 0x27, (byte) 0xC3, (byte) 0xDD, 0x62, (byte) 0xE7, (byte) 0xFD, (byte) 0x97, 0xE, 0x2E, (byte) 0xD2, (byte) 0xF0, (byte) 0xFF, (byte) 0x84, (byte) 0x9E, 0x6C, (byte) 0xD1, 0x29, 0x43, (byte) 0xF7, (byte) 0xCF, 0x6A, (byte) 0x9D, 0x74, (byte) 0xED, 4, (byte) 0xC8, (byte) 0xA1, (byte) 0x9B, 0, 0x75, (byte) 0xE8, 0x65, (byte) 0xC9, 0x5B, (byte) 0x88, 0x79, (byte) 0xC2, 0x34, 0x49, (byte) 0x8C, (byte) 0xF1, (byte) 0xA9, (byte) 0xC7, 0x38, 0x59, 0x32, 0x4F, 0x64, (byte) 0xDF, (byte) 0xDE, (byte) 0xF9, 0x1C, (byte) 0xB6, 0x21, 0x68, 0x13, 0x69, 0x37, (byte) 0xD3, 0x52, (byte) 0x94, (byte) 0xB7, (byte) 0xA3, 0x33, 0x56, (byte) 0xD0, (byte) 0xE0, 0x42, (byte) 0xD4, 0x63, (byte) 0xD6, 0x5A, 0x5F, (byte) 0xD9, (byte) 0xBC, (byte) 0xCB, 0x6E, 0x3C, 0x73, (byte) 0x86, 0x2B, (byte) 0xB8, (byte) 0x87, (byte) 0xBE, (byte) 0x8F, 0x3A, (byte) 0x8A, 0x1B, 0x7A, (byte) 0x82, (byte) 0x8B, 0x70, 0x72, 0x4B, (byte) 0xE3, 0x17, (byte) 0xDB, (byte) 0xBF, 0x53, 0x1E, 5, 0x67, (byte) 0x85, 0x7B, 7, (byte) 0x92, 0x66, (byte) 0xDC, 0x14, (byte) 0xAD, 1, 0x55, 0x30, 0x58, 0x3D, (byte) 0x83, (byte) 0xB9};
+        byte[] x11 = {(byte) 0xFC, (byte) 0xE9, (byte) 0xF9, 0x18, 0x42, (byte) 0xD4, (byte) 0xA4, 0x55, 0x23, (byte) 0xBB, 0x3E, (byte) 0x8D, 0x11, (byte) 0xF0, 0x3F, (byte) 0xC2, (byte) 0xB1, 0x49, 0x61, (byte) 0x8F, (byte) 0xF7, (byte) 0xDD, 7, (byte) 0xE3, (byte) 0x9C, 0x20, (byte) 0xD0, (byte) 0x87, (byte) 0xEA, (byte) 0xF2, (byte) 0xFF, (byte) 0xDA, 0x2F, (byte) 0xA9, 0x4A, 0x74, 0xC, (byte) 0xF6, (byte) 0xE4, 0x1F, 0x50, (byte) 0xB2, 0x3A, 0x38, 0x47, 0x5C, (byte) 0x80, 0x22, (byte) 0xB0, 0x33, (byte) 0xE6, 0x31, (byte) 0xB7, 0x7F, (byte) 0xB4, (byte) 0xA5, 0x77, 1, (byte) 0xE5, 6, (byte) 0x9B, (byte) 0xA8, 0x46, (byte) 0xED, (byte) 0xC6, 8, (byte) 0x96, (byte) 0xF3, 0x52, (byte) 0x85, (byte) 0xAD, 0x60, (byte) 0xF8, (byte) 0xEC, (byte) 0x88, 0x76, (byte) 0x91, 0x44, (byte) 0xD9, 3, 0x37, (byte) 0xBF, 0x4C, (byte) 0xA3, 0x2C, 0, (byte) 0xDF, (byte) 0xAA, 0x5A, (byte) 0xD8, (byte) 0xDB, 0x72, (byte) 0x8C, 0x1E, 0xF, 0xD, 0x51, (byte) 0x84, 0x6E, (byte) 0xCE, (byte) 0xB9, 0x1B, (byte) 0xAE, 0x70, (byte) 0xAB, 0x63, 0x56, 0x17, 0x15, 0x39, (byte) 0xC0, (byte) 0xEB, (byte) 0xB3, (byte) 0xC9, (byte) 0xD3, 0xA, (byte) 0xC5, 4, 0x5D, (byte) 0xA0, (byte) 0xDE, 0x28, 0x6A, 0x79, 0x3C, 0x4D, (byte) 0x82, 0x4F, (byte) 0xE0, (byte) 0xD5, 0x7E, 2, 0x35, 0x2A, (byte) 0xA1, 0x59, 0x64, (byte) 0xBA, 0xB, 5, (byte) 0xF5, (byte) 0xFE, (byte) 0x9D, 0x41, 0x54, (byte) 0xCF, 0x2D, (byte) 0x94, (byte) 0xB8, 0x43, 0x73, 0x36, (byte) 0xBE, (byte) 0xA2, (byte) 0xEF, (byte) 0x86, (byte) 0xE1, 0x14, 0x67, (byte) 0x92, 0x4B, 0x69, 0x26, 0x7A, (byte) 0xD6, (byte) 0xF4, (byte) (byte) 0xFA, (byte) 0xEE, (byte) 0xC8, (byte) 0x95, (byte) 0xC7, 0x5B, 0x6C, 0x1C, 0x19, (byte) 0x9A, 0x30, (byte) 0xD2, (byte) 0xA7, 0x3D, 0x6D, 0x5E, 0x45, (byte) 0xB5, (byte) 0xF1, (byte) 0x9E, (byte) 0xC4, (byte) 0x90, 0x7C, (byte) 0xBD, (byte) 0x81, (byte) 0x8B, 0xE, (byte) 0x8E, 0x21, (byte) 0xD7, 0x27, (byte) 0x89, (byte) 0x9F, (byte) 0x99, 0x32, (byte) 0x93, 0x4E, (byte) 0x98, (byte) 0xFB, 0x3B, (byte) 0xE8, (byte) 0xC1, 0x34, 0x57, (byte) 0xDC, (byte) 0x83, (byte) 0xCA, 0x71, (byte) 0xA6, (byte) 0xAC, 0x29, 0x2E, (byte) 0xFD, (byte) 0xCD, (byte) 0xCB, (byte) 0xD1, 0x7B, 0x2B, 0x78, 0x6B, 0x12, 0x62, 0x65, 0x10, 0x58, 0x75, (byte) 0xC3, 0x16, (byte) 0xBC, (byte) 0xE2, 9, 0x7D, (byte) 0xE7, (byte) 0x97, 0x6F, 0x68, (byte) 0xCC, 0x25, 0x53, (byte) 0x8A, (byte) 0xAF, 0x40, 0x48, 0x24, 0x5F, (byte) 0xB6, 0x66, 0x13, 0x1D, 0x1A};
+        for (int i = 0; i < Math.min(bytes.length, 0x2800); i++) {
+            int j = 0;
+
+            do {
+                if (bytes[i] == x10[j]) {
+                    break;
+                }
+                j++;
+            } while (j < 0x100);
+            if (j >= 0x100) {
+                continue;
+            }
+            int x12 = j + (bytes.length & 0xFF);
+            if (x12 > 0xFF) {
+                x12 = x12 - 0x100;
+            }
+            bytes[i] = x11[x12];
+        }
+        return bytes;
+
+    }
+
+    public static int stringToInt(String str) {
+        String[] split = str.split(str);
+        return Integer.parseInt(split[split.length - 1]);
+
+    }
+
+
+}
